@@ -44,6 +44,7 @@ const MOCK_POSTS: (Post & { isLiked: boolean; timeAgo: string })[] = [
 ];
 
 export function CommunityBoardWithDB() {
+  const isDemo = import.meta.env.VITE_DEMO_MODE === 'true';
   const [posts, setPosts] = useState<(Post & { isLiked: boolean; timeAgo: string })[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEditOpen, setIsEditOpen] = useState(false);
@@ -166,7 +167,7 @@ export function CommunityBoardWithDB() {
         setPosts([mockPost, ...posts]);
         setNewPost('');
         setIsDialogOpen(false);
-        toast.success('게시글이 등록되었습니다 (데모 모드)');
+        toast.success(isDemo ? '게시글이 등록되었습니다 (데모 모드)' : '게시글이 등록되었습니다');
       }
     }
   };
