@@ -37,6 +37,15 @@ export interface MarketItem {
   created_at: string;
 }
 
+export interface MarketItemImage {
+  id: string;
+  market_item_id: string;
+  url: string;
+  path: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Message {
   id: string;
   conversation_id: string;
