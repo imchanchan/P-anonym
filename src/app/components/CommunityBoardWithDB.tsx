@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Plus, ThumbsUp, MessageCircle, Clock } from 'lucide-react';
+import { Plus, ThumbsUp, MessageCircle, Clock, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '@/app/components/ui/button';
 import { Card } from '@/app/components/ui/card';
 import { Textarea } from '@/app/components/ui/textarea';
@@ -46,8 +46,12 @@ const MOCK_POSTS: (Post & { isLiked: boolean; timeAgo: string })[] = [
 export function CommunityBoardWithDB() {
   const [posts, setPosts] = useState<(Post & { isLiked: boolean; timeAgo: string })[]>([]);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEditOpen, setIsEditOpen] = useState(false);
   const [newPost, setNewPost] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('질문');
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editingContent, setEditingContent] = useState('');
+  const [editingCategory, setEditingCategory] = useState('질문');
   const [loading, setLoading] = useState(true);
 
   const categories = ['질문', '잡담', '고민', '정보', '기타'];
@@ -167,6 +171,85 @@ export function CommunityBoardWithDB() {
     }
   };
 
+  const openEdit = (post: Post & { isLiked: boolean; timeAgo: string }) => {
+    setEditingPostId(post.id);
+    setEditingContent(post.content);
+    setEditingCategory(post.category);
+    setIsEditOpen(true);
+  };
+
+  const handleUpdatePost = async () => {
+    if (!editingPostId || !editingContent.trim()) return;
+
+    if (isUsingSupabase && supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('posts')
+          .update({ content: editingContent, category: editingCategory })
+          .eq('id', editingPostId)
+          .select()
+          .single();
+
+        if (error) throw error;
+
+        setPosts(posts.map(post => {
+          if (post.id === editingPostId) {
+            return {
+              ...post,
+              content: data.content,
+              category: data.category,
+              created_at: data.created_at,
+            };
+          }
+          return post;
+        }));
+
+        setIsEditOpen(false);
+        setEditingPostId(null);
+        toast.success('게시글이 수정되었습니다');
+      } catch (error) {
+        console.error('Error updating post:', error);
+        toast.error('게시글 수정에 실패했습니다');
+      }
+    } else {
+      setPosts(posts.map(post => {
+        if (post.id === editingPostId) {
+          return {
+            ...post,
+            content: editingContent,
+            category: editingCategory,
+          };
+        }
+        return post;
+      }));
+      setIsEditOpen(false);
+      setEditingPostId(null);
+      toast.success('게시글이 수정되었습니다 (데모 모드)');
+    }
+  };
+
+  const handleDeletePost = async (postId: string) => {
+    if (isUsingSupabase && supabase) {
+      try {
+        const { error } = await supabase
+          .from('posts')
+          .delete()
+          .eq('id', postId);
+
+        if (error) throw error;
+
+        setPosts(posts.filter(post => post.id !== postId));
+        toast.success('게시글이 삭제되었습니다');
+      } catch (error) {
+        console.error('Error deleting post:', error);
+        toast.error('게시글 삭제에 실패했습니다');
+      }
+    } else {
+      setPosts(posts.filter(post => post.id !== postId));
+      toast.success('게시글이 삭제되었습니다 (데모 모드)');
+    }
+  };
+
   const getTimeAgo = (dateString: string) => {
     const now = new Date();
     const past = new Date(dateString);
@@ -243,6 +326,51 @@ export function CommunityBoardWithDB() {
         </DialogContent>
       </Dialog>
 
+      {/* Edit Post Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>익명 글 수정</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="text-sm font-medium mb-2 block">카테고리</label>
+              <div className="flex flex-wrap gap-2">
+                {categories.map(cat => (
+                  <Badge
+                    key={cat}
+                    variant={editingCategory === cat ? 'default' : 'outline'}
+                    className={`cursor-pointer ${
+                      editingCategory === cat
+                        ? 'bg-purple-600 hover:bg-purple-700'
+                        : 'hover:bg-gray-100'
+                    }`}
+                    onClick={() => setEditingCategory(cat)}
+                  >
+                    {cat}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+            <div>
+              <label className="text-sm font-medium mb-2 block">내용</label>
+              <Textarea
+                placeholder="익명으로 자유롭게 작성하세요..."
+                value={editingContent}
+                onChange={(e) => setEditingContent(e.target.value)}
+                className="min-h-[150px]"
+              />
+            </div>
+            <Button 
+              onClick={handleUpdatePost}
+              className="w-full bg-purple-600 hover:bg-purple-700"
+            >
+              수정하기
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* Posts List */}
       <div className="space-y-3">
         {posts.length === 0 ? (
@@ -279,6 +407,22 @@ export function CommunityBoardWithDB() {
                     <MessageCircle size={16} />
                     <span>{post.comments}</span>
                   </button>
+                  <div className="ml-auto flex items-center gap-2">
+                    <button
+                      onClick={() => openEdit(post)}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-purple-600 transition-colors"
+                    >
+                      <Pencil size={14} />
+                      수정
+                    </button>
+                    <button
+                      onClick={() => handleDeletePost(post.id)}
+                      className="flex items-center gap-1 text-xs text-gray-500 hover:text-red-500 transition-colors"
+                    >
+                      <Trash2 size={14} />
+                      삭제
+                    </button>
+                  </div>
                 </div>
               </div>
             </Card>
